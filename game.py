@@ -7,11 +7,11 @@ from time import sleep
 
 
 class Game():
-    def __init__(self, n_pix, q, state=None):
+    def __init__(self, n_pix, q, state=None, randomize=False, rand_frac=0.9):
         self.n_pix = n_pix
         self.q = q
         if state is None:
-            self.state = st.State(self.n_pix)
+            self.state = st.State(self.n_pix, randomize=randomize, rand_frac=rand_frac)
         else:
             self.state = state
         self.turn = 1

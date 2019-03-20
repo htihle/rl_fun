@@ -54,6 +54,7 @@ class Unit():
         elif (my_map[1 - action[0], 0, newpos[0], newpos[1]] > 0):
             self.position = newpos
             state.players[1 - action[0]][0][0].size = 0
+            state.players[1 - action[0]][0][0].res = 0
             if state.done:
                 pass
             else:

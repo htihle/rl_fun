@@ -7,7 +7,7 @@ from time import sleep
 
 
 class State():
-    def __init__(self, n_pix, players=None):
+    def __init__(self, n_pix, players=None, randomize=False, rand_frac=0.9):
         self.n_pix = n_pix
         self.done = False
         if players is None:
@@ -16,6 +16,15 @@ class State():
                 [[units.Center((self.n_pix - 1, self.n_pix - 1))],
                  [units.Unit((self.n_pix - 1, self.n_pix - 2))]]
             ]
+            if randomize and np.random.rand() < rand_frac:
+                for player in self.players:
+                    for t in player:
+                        for u in t:
+                            u.size += np.random.randint(0, 5)
+                self.players[0][1][0].position += np.random.randint(0, 2, 2)
+                self.players[1][1][0].position -= np.random.randint(0, 2, 2)
+                self.players[0][0][0].res = np.random.randint(0, 10)
+                self.players[1][0][0].res = np.random.randint(0, 10)
         else:
             self.players = players
 

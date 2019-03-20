@@ -61,7 +61,6 @@ def get_feat_nn(state, action):
 
 
 def v(state, action, net):
-
     x = get_feat_nn(state, action)
     # print(x.shape)
     value = net.predict(x[None, :])
@@ -93,18 +92,18 @@ def view_replay(gameid, net):
     print(victory)
 
 
-def train_nn(net):
-    for i in range(5):
+def train_nn(net, elo=0.0):
+    for i in range(1):
         print(i)
-        eps = 0.2
-        n_games = 100
+        eps = 0.3
+        n_games = 3000
         lens = np.zeros(n_games)
         accuracy = []
         victories = []
         x = []
         y = []
         for gameid in range(n_games):
-            my_game = game.Game(n_pix, q)
+            my_game = game.Game(n_pix, q, randomize=True, rand_frac=0.9)
             my_game.aivsai(net, net, eps=eps)
             # replay, victory, _ = load_game(gameid)
             replay = my_game.replay
@@ -143,7 +142,7 @@ def train_nn(net):
         
         y = np.array(y)
         x = np.array(x)
-        training_data = list(zip(x, y))
+        # training_data = list(zip(x, y))
         # net = network.Network([len(x1), 50, 20, 1])
         # net.SGD(training_data, 10, 20, 0.1)
         net.fit(x, y, epochs=10)
@@ -152,8 +151,54 @@ def train_nn(net):
         print('Median game length: ', np.median(lens))
     filename = 'nn_3_0'
     with open(filename + '.pkl', 'wb') as f:
-            pickle.dump(net, f, pickle.HIGHEST_PROTOCOL)
-    return net
+                pickle.dump(net, f, pickle.HIGHEST_PROTOCOL)
+    
+    mod = [elo, net]
+    mod2 = load_ref('ref_best')
+    elo_new, _, mean_score = compare_models(mod, mod2, n_exp=500, ref=True)
+    mod = [elo_new, net]
+
+    print("New elo: ", elo_new)
+    if (elo_new > elo + 15) and (mean_score > 0.53):
+        save_ref(mod, 'ref_' + str(int(elo)))
+        save_ref(mod, 'ref_best')
+        return [elo_new, net]
+    else:
+        return load_ref('ref_best')
+
+
+def compare_models(mod1, mod2, n_exp=100, ref=False):
+    elo1, model1 = mod1
+    elo2, model2 = mod2
+    vic = np.zeros(n_exp)
+    K = 10
+    eps = 0.1
+    for i in range(n_exp):
+        if i < n_exp // 2:
+            gm = game.Game(n_pix, q, randomize=True, rand_frac=0.2)
+            gm.aivsai(model1, model2, eps=eps)
+            vic[i] = (gm.state.victory + 1) * 0.5
+        else:
+            gm = game.Game(n_pix, q, randomize=True, rand_frac=0.2)
+            gm.aivsai(model2, model1, eps=eps)
+            vic[i] = 1 - (gm.state.victory + 1) * 0.5
+
+        exp1, exp2 = get_exp(elo1, elo2)
+        
+        elo1 = elo1 + K * (vic[i] - exp1)
+        if not ref:
+            elo2 = elo2 + K * ((1 - vic[i]) - exp2)
+    print('Mean score: ', np.mean(vic))
+    return elo1, elo2, np.mean(vic)
+
+
+def get_exp(e1, e2):
+    q1 = 10 ** (e1 / 400)
+    q2 = 10 ** (e2 / 400)
+    qsum = q1 + q2
+    e1 = q1 / qsum
+    e2 = q2 / qsum
+    return e1, e2 
 
 
 def TD_lambda(v_pred, gamma=0.99, lamb=0.9):
@@ -177,36 +222,59 @@ def TD_lambda(v_pred, gamma=0.99, lamb=0.9):
 #     model.compile(loss='mse', optimizer=Adam())
 #     return model
 
+# def train_model(training_data, model):
+#     print(training_data[0])
+#     X = np.array([i[0] for i in training_data]).reshape(-1, len(training_data[0][0]))
+#     y = np.array([i[1] for i in training_data]).reshape(-1, len(training_data[0][1]))
+#     # model = build_model(input_size=len(X[0]), output_size=len(y[0]))
+#     model.fit(X, y, epochs=10)
+#     return model
 
-def train_model(training_data, model):
-    print(training_data[0])
-    X = np.array([i[0] for i in training_data]).reshape(-1, len(training_data[0][0]))
-    y = np.array([i[1] for i in training_data]).reshape(-1, len(training_data[0][1]))
-    # model = build_model(input_size=len(X[0]), output_size=len(y[0]))
-    model.fit(X, y, epochs=10)
-    return model
 
 def load_nn():
     filename = 'nn_3_0'
     with open(filename + '.pkl', 'rb') as f:
         return pickle.load(f)
 
+
+def save_ref(mod, name='ref'):
+    with open(name + '.pkl', 'wb') as f:
+            pickle.dump(mod, f, pickle.HIGHEST_PROTOCOL)
+
+
+def load_ref(name='ref'):
+    with open(name + '.pkl', 'rb') as f:
+        return pickle.load(f)
+
+
 n_pix = 4
 n_feat = 2 * n_pix ** 2 + 9
 learning_rate = 0.001
+
 # model = Sequential()
 # model.add(Dense(128, input_dim=n_feat, activation='relu'))
+# model.add(Dense(128, activation='relu'))
 # model.add(Dense(52, activation='relu'))
+# model.add(Dense(16, activation='relu'))
 # model.add(Dense(1, activation='sigmoid'))
 # model.compile(loss='binary_crossentropy', optimizer=Adam(lr=learning_rate), metrics=['accuracy'])
 
+# model = load_nn()
+elo, model = load_ref(name='ref')
+# mod = train_nn(model, elo=elo)
+# save_ref(mod, name='ref')
+# print("Elo: ", mod[0])
 
-model = load_nn()
+mod = [1000, model]
 
-train_nn(model)
+mod2 = load_ref('ref_1000')
+
+print(compare_models(mod, mod2, n_exp=300, ref=True))
+# save_ref(mod, name='ref_1000')
 
 for i in range(1):
     view_replay(1, model)
 
 # my_game = game.Game(n_pix, q)
 # my_game.vs_ai(model)
+
